@@ -1,2 +1,4 @@
 /target
 **/*.rs.bk
+test.rs
+text2.rs
