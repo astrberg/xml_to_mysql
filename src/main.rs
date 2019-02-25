@@ -4,7 +4,6 @@ extern crate quick_xml;
 
 use std::io;
 use std::fs::File;
-use std::string::FromUtf8Error;
 use quick_xml::Reader;
 use quick_xml::events::Event;
 use quick_xml::events::attributes::Attribute;
@@ -33,13 +32,18 @@ fn read_file() {
     let mut xml = Reader::from_file("station_data.xml").expect("Failed to open file!");
     xml.trim_text(true);
 
-    let mut id_arr = Vec::new();
-    // let mut road_number = Vec::new();
+    let mut id_arr = vec![];
+    let mut station_name = vec![];
+    let mut road_number = vec![];
+    let mut county_number = vec![];
+    let mut latitude = vec![];
+    let mut longitude = vec![];
+    let mut i = 0;
+
 
     let mut buf = Vec::new();
 
     loop {
-
         match xml.read_event(&mut buf) {
             Ok(Event::Start(ref e)) => 
                 
@@ -55,19 +59,26 @@ fn read_file() {
                                 Err(_) => {},
                             }
                         }
-                        // let mut attr = e.attributes().map(|attr| attr.unwrap().value).collect::<Vec<_>>();
-                        // id_arr.push(get_attribute_value(&attr);
-                        // println!("{:?}", id_arr);
-                        println!("{:?}", id_arr);
+                    }
+                    b"ns0:value" => {
+                        station_name.push(xml.read_text(e.name(), &mut Vec::new()).unwrap());
+                    }
+                    b"ns0:roadNumber" => {
+                        road_number.push(xml.read_text(e.name(), &mut Vec::new()).unwrap());
 
+                    }
+                    b"ns0:countyNumber" => {
+                        county_number.push(xml.read_text(e.name(), &mut Vec::new()).unwrap());
 
-                    // let attr = e.attributes().collect::<Vec<_>>();
-                         // id_arr.push(format!("{}", from_utf8(e.attributes().key.unwrap())));
-                    } 
-                    // b"ns0:roadNumber" => {
-                    //     road_number.push(xml.read_text(e.name(), &mut Vec::new()).unwrap());
-                    //     println!("{:?}", road_number);
-                    // }
+                    }
+                    b"ns0:latitude" => {
+                        latitude.push(xml.read_text(e.name(), &mut Vec::new()).unwrap());
+
+                    }
+                    b"ns0:longitude" => {
+                        longitude.push(xml.read_text(e.name(), &mut Vec::new()).unwrap());
+
+                    }
 
                     _ => (),
 
@@ -80,13 +91,22 @@ fn read_file() {
         buf.clear();
 
     }
+    println!("{:?}", id_arr);
+    println!("{:?}", station_name);
+    println!("{:?}", road_number);
+    println!("{:?}", county_number);
+    println!("{:?}", latitude);
+    println!("{:?}", longitude);
+    println!{"{}", i};
+
+
 
 
 }       
 
-fn get_attribute_value(attr: &Attribute) -> Result<String, FromUtf8Error> {
+fn get_attribute_value(attr: &Attribute) -> String {
     let value = (&attr.value).clone().into_owned();
-    String::from_utf8(value)
+    String::from_utf8(value).unwrap()
 }
 
 fn main() {
