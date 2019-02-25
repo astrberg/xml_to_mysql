@@ -1,5 +1,6 @@
 extern crate reqwest;
 extern crate quick_xml;
+extern crate mysql;
 
 
 use std::io;
@@ -30,7 +31,7 @@ fn fetch_xml() {
 fn read_file() {
 
     let mut xml = Reader::from_file("station_data.xml").expect("Failed to open file!");
-    xml.trim_text(true);
+    // xml.trim_text(true);
 
     let mut id_arr = vec![];
     let mut station_name = vec![];
@@ -38,8 +39,9 @@ fn read_file() {
     let mut county_number = vec![];
     let mut latitude = vec![];
     let mut longitude = vec![];
-    let mut i = 0;
-
+    
+    let mut lat_stored = false;
+    let mut long_stored = false;
 
     let mut buf = Vec::new();
 
@@ -62,6 +64,7 @@ fn read_file() {
                     }
                     b"ns0:value" => {
                         station_name.push(xml.read_text(e.name(), &mut Vec::new()).unwrap());
+                    
                     }
                     b"ns0:roadNumber" => {
                         road_number.push(xml.read_text(e.name(), &mut Vec::new()).unwrap());
@@ -71,12 +74,23 @@ fn read_file() {
                         county_number.push(xml.read_text(e.name(), &mut Vec::new()).unwrap());
 
                     }
+                    // For some reason latitude and longitude coordinates are stored twice in the XML file
                     b"ns0:latitude" => {
-                        latitude.push(xml.read_text(e.name(), &mut Vec::new()).unwrap());
+                        if lat_stored {
+                            lat_stored = false;
+                        } else {
+                            latitude.push(xml.read_text(e.name(), &mut Vec::new()).unwrap());
+                            lat_stored = true;
+                        }
 
                     }
                     b"ns0:longitude" => {
-                        longitude.push(xml.read_text(e.name(), &mut Vec::new()).unwrap());
+                        if long_stored {
+                            long_stored = false;
+                        } else {
+                            longitude.push(xml.read_text(e.name(), &mut Vec::new()).unwrap());
+                            long_stored = true;
+                        }
 
                     }
 
@@ -84,7 +98,7 @@ fn read_file() {
 
             },
             Ok(Event::Eof) => break,
-            Err(e) => panic!("Error {}: {:?}", xml.buffer_position(), e),
+            Err(e) => panic!("Error at pos {}: {:?}", xml.buffer_position(), e),
 
             _ => (),
         }
@@ -97,7 +111,6 @@ fn read_file() {
     println!("{:?}", county_number);
     println!("{:?}", latitude);
     println!("{:?}", longitude);
-    println!{"{}", i};
 
 
 
@@ -107,6 +120,22 @@ fn read_file() {
 fn get_attribute_value(attr: &Attribute) -> String {
     let value = (&attr.value).clone().into_owned();
     String::from_utf8(value).unwrap()
+}
+
+fn create_mysql_tables() {
+    let pool = mysql::Pool::new("mysql://mysql:password@localhost:3307/mysql").unwrap();
+
+    pool.prep_exec(r"CREATE TABLE `station_data` (
+                        `id` char(20) NOT NULL,
+                        `lat` float DEFAULT NULL,
+                        `lon` float DEFAULT NULL,
+                        `name` varchar(30) DEFAULT NULL,
+                        `road_number` int(10) DEFAULT NULL,
+                        `county_number` int(10) DEFAULT NULL,
+                        PRIMARY KEY (`id`)
+                    )", ()).unwrap();
+
+
 }
 
 fn main() {
