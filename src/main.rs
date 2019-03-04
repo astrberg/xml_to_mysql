@@ -14,16 +14,15 @@ use quick_xml::events::attributes::Attribute;
 use mysql::{Pool, Opts};
 use mysql::OptsBuilder;
 
-// struct StationData {
-//     id: String,
-//     name:  String,
-//     road_number: String,
-//     county_number: String,
-//     latitude: String,
-//     longitude: String,
-// }
-
-
+#[derive(Debug)]
+struct StationData {
+    id: String,
+    name:  String,
+    road_number: String,
+    county_number: String,
+    latitude: String,
+    longitude: String,
+}
 
 fn fetch_xml() {
    
@@ -43,59 +42,68 @@ fn fetch_xml() {
 
 }
 
-fn read_file() {
-
-    let mut xml = Reader::from_file("station_data.xml").expect("Failed to open file!");
-    // xml.trim_text(true);
 
 
-    let mut station_data = vec![];
+fn read_file(xmlfile: &str) -> Vec<StationData> {
+
+    let mut xml = Reader::from_file(xmlfile).expect("Failed to open file!");
+    xml.trim_text(true);
     
     let mut lat_stored = false;
     let mut long_stored = false;
 
+    let mut station_data = Vec::new();
+
     let mut buf = Vec::new();
+    
+    
 
     loop {
+        
         match xml.read_event(&mut buf) {
-            Ok(Event::Start(ref e)) => 
-                
-                match e.name() {
+            Ok(Event::Start(e)) => match e.name() {
                     b"ns0:measurementSiteRecord" => {
+                        let station = StationData {
 
+                            id: String::new(),
+                            name: String::new(),
+                            road_number: String::new(),
+                            county_number: String::new(),
+                            latitude: String::new(),
+                            longitude: String::new(),
+                        };
+                        station_data.push(station);
                         for a in e.attributes().with_checks(false) {
                             match a {
                                 Ok(ref attr) if attr.key == b"id" => {
-                                    // id.push(get_attribute_value(attr));
-                                    station_data.push(get_attribute_value(attr));
-                                    // let mut id = get_attribute_value(attr);
-                                },
-                                Ok(_) => {},
-                                Err(_) => {},
+                                    let station = station_data.last_mut().unwrap();
+                                    station.id = get_attr_value(attr);
+                                }
+                                    
+                                Ok(_) => (),
+                                Err(_) => (),
                             }
                         }
                     }
                     b"ns0:value" => {
-                        station_data.push(xml.read_text(e.name(), &mut Vec::new()).unwrap());
-                        // let mut value = xml.read_text(e.name(), &mut Vec::new()).unwrap();
-                    
-                    }
+                        let station = station_data.last_mut().unwrap();
+                        station.name = xml.read_text(e.name(), &mut Vec::new()).unwrap();
+                    }                                     
                     b"ns0:roadNumber" => {
-                        station_data.push(xml.read_text(e.name(), &mut Vec::new()).unwrap());
-                        // let mut road_number = xml.read_text(e.name(), &mut Vec::new()).unwrap();
+                        let station = station_data.last_mut().unwrap();
+                        station.road_number = xml.read_text(e.name(), &mut Vec::new()).unwrap();
                     }
                     b"ns0:countyNumber" => {
-                        station_data.push(xml.read_text(e.name(), &mut Vec::new()).unwrap());
-                        // let mut county_number = xml.read_text(e.name(), &mut Vec::new()).unwrap();
-
+                        let station = station_data.last_mut().unwrap();
+                        station.county_number = xml.read_text(e.name(), &mut Vec::new()).unwrap();
                     }
                     // For some reason latitude and longitude coordinates are stored twice in the XML file
                     b"ns0:latitude" => {
                         if lat_stored {
                             lat_stored = false;
                         } else {
-                            station_data.push(xml.read_text(e.name(), &mut Vec::new()).unwrap());
-                            // let mut latitude = xml.read_text(e.name(), &mut Vec::new()).unwrap();
+                            let station = station_data.last_mut().unwrap();
+                            station.latitude = xml.read_text(e.name(), &mut Vec::new()).unwrap();
                             lat_stored = true;
                         }
 
@@ -104,29 +112,30 @@ fn read_file() {
                         if long_stored {
                             long_stored = false;
                         } else {
-                            station_data.push(xml.read_text(e.name(), &mut Vec::new()).unwrap());
-                            // let mut longitude = xml.read_text(e.name(), &mut Vec::new()).unwrap();
+                            let station = station_data.last_mut().unwrap();
+                            station.longitude = xml.read_text(e.name(), &mut Vec::new()).unwrap();
                             long_stored = true;
                         }
 
-                    }         
-               _ => (),
+                    }
+                           
+                    _ => (), // There are several other `Event`s we do not consider here
 
             },
-            Ok(Event::Eof) => break,
+            Ok(Event::Eof) => break,  
             Err(e) => panic!("Error at pos {}: {:?}", xml.buffer_position(), e),
 
             _ => (),
         }
         buf.clear();
     }
-    println!("{:?}", station_data);
-    // insert_station_data(station_data);
+    
+    station_data
 
 } 
      
 
-fn get_attribute_value(attr: &Attribute) -> String {
+fn get_attr_value(attr: &Attribute) -> String {
     let value = (&attr.value).clone().into_owned();
     String::from_utf8(value).unwrap()
 }
@@ -164,44 +173,36 @@ fn get_opts() -> Opts {
     builder.into()
 }
 
-fn insert_station_data(station_data: Vec<String>) {
+fn insert_station_data(station_data: Vec<StationData>) {
     
     let opts = get_opts();
     let pool = Pool::new(opts).unwrap();
 
-    
-
-    for mut stmt in pool.prepare(r"INSERT INTO station_data (id, lat, lon, name, road_number, county_number) VALUES (:id, :lat, :lon, :name, :road_number, :county_number)").into_iter() {
+    for mut stmt in pool.prepare(r"INSERT INTO station_data (id, lat, lon, name, road_number, county_number) 
+                                    VALUES (:id, :latitude, :longitude, :name, :road_number, :county_number);").into_iter() {
         
         for i in station_data.iter() {
             stmt.execute(params!{
-            "id" => i,
-            "lat" => i.next(),
-            "lon" => "12.1010101212",
-            "name" => "hej",
-            "road_number" => "3",
-            "county_number" => "7",
-        }).unwrap();   
+                "id" => i.id.clone(),
+                "latitude" => i.latitude.clone(),
+                "longitude" => i.longitude.clone(),
+                "name" => i.name.clone(),
+                "road_number" => i.road_number.clone(),
+                "county_number" => i.county_number.clone(),
+            }).unwrap();
         }
-        
     }
-
-    // for mut stmt in pool.prepare(r"INSERT INTO station_data (id, latitude, longitude) VALUES (:id, :latitude, :longitude)").into_iter() {
-        
-    //     for values in station_data.iter() {
-    //         stmt.execute(
-    //             "id" => &station_data[0],
-    //             "latitude" => &station_data[1],
-    //             "longitude" => &station_data[2]
-    //         ).unwrap();
-    //     }
-    // }
     
 }
 
 fn main() {
-    insert_station_data();
-    //  read_file();
+    // insert_station_data();
+    let stations = read_file("station_data.xml");
+    // for i in stations.iter() {
+    //     println!("{:?}", i.id);
+
+    // }
+    insert_station_data(stations);
     // fetch_xml();
     // create_mysql_tables();
 }
