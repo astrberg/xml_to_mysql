@@ -1,5 +1,3 @@
-use std::io;
-use std::fs::File;
 use quick_xml::Reader;
 use quick_xml::events::Event;
 use mysql::{Pool, Opts};
@@ -15,31 +13,11 @@ pub struct StationData {
     longitude: String,
 }
 
-// Get the XML file from datex using basic auth
-pub fn fetch_xml(url: &str, user: &str, pass: &str) {
-   
-    let client = reqwest::Client::new();
-
-    let mut response = client.get(url)
-        .basic_auth(user, Some(pass))
-        .send()
-        .expect("Connection failed to Datex");
-    assert!(response.status().is_success());
-
-
-    let mut file = File::create("station_data.xml")
-        .expect("Error creating file, station_data");
-    io::copy(&mut response, &mut file)
-        .expect("Failed to read response to file");
-
-}
-
-
 // Parse xml file and return station_data vector
 pub fn read_file(xmlfile: &str) -> Vec<StationData> {
 
     let mut xml = Reader::from_file(xmlfile).expect("Failed to open file!");
-    xml.trim_text(true);
+    xml.trim_text(true); //remove whitespaces
     
     let mut lat_stored = false;
     let mut long_stored = false;
@@ -62,6 +40,7 @@ pub fn read_file(xmlfile: &str) -> Vec<StationData> {
                             longitude: String::new(),
                         };
                         station_data.push(station);
+                        // Get station id
                         for a in e.attributes().with_checks(false) {
                             match a {
                                 Ok(ref attr) if attr.key == b"id" => {
@@ -70,9 +49,8 @@ pub fn read_file(xmlfile: &str) -> Vec<StationData> {
                                     station.id = String::from_utf8(attr.value.clone().into_owned()).unwrap()
 
                                 }
-                                    
                                 Ok(_) => (),
-                                Err(_) => (),
+                                Err(_) => panic!("Failed to get station id at pos {}: {:?}", xml.buffer_position(), a),
                             }
                         }
                     }
@@ -125,47 +103,17 @@ pub fn read_file(xmlfile: &str) -> Vec<StationData> {
 
 } 
 
-pub fn create_mysql_tables(opts: Opts) {
-
-    let pool = Pool::new(opts).unwrap();
-
-    pool.prep_exec(r"CREATE TABLE `station_data` (
-                        `id` char(20) NOT NULL,
-                        `lat` float DEFAULT NULL,
-                        `lon` float DEFAULT NULL,
-                        `name` varchar(30) DEFAULT NULL,
-                        `road_number` int(10) DEFAULT NULL,
-                        `county_number` int(10) DEFAULT NULL,
-                        PRIMARY KEY (`id`)
-                    )", ()).unwrap();
-
-
-}
-// Setup connection to mysql
-pub fn get_opts(user: &str, pass: &str, addr: &str, database: &str) -> Opts {
-    // let user = "mysql";
-    // let address = "127.0.0.1";
-    let pass: String = ::std::env::var(pass).unwrap_or(pass.to_string());
-    let port: u16 = ::std::env::var("3306").ok().map(|my_port| my_port.parse().ok().unwrap_or(3306)).unwrap_or(3306);
-
-    let mut builder = OptsBuilder::default();
-    
-    builder.user(Some(user))
-            .pass(Some(pass))
-            .ip_or_hostname(Some(addr))
-            .tcp_port(port)
-            .db_name(Some(database));
-    builder.into()
-    
-}
-
 pub fn insert_station_data(opts: Opts, station_data: Vec<StationData>) {
 
     // Create new pool connection 
-    let pool = Pool::new(opts).unwrap();
+    let pool = Pool::new(opts).expect("Pool failed to get opts in fn insert_station_data");
 
-    for mut stmt in pool.prepare(r"INSERT INTO station_data (id, lat, lon, name, road_number, county_number) 
-                                    VALUES (:id, :latitude, :longitude, :name, :road_number, :county_number);").into_iter() {
+    let insert_stmt = r"INSERT INTO station_data (id, lat, lon, name, road_number, county_number) 
+                                    VALUES (:id, :latitude, :longitude, :name, :road_number, :county_number)
+                                    ON DUPLICATE KEY UPDATE lat=:latitude, lon=:longitude, name=:name, road_number=:road_number,
+                                    county_number=:county_number;";
+
+    for mut stmt in pool.prepare(insert_stmt).into_iter() { 
         
         for i in station_data.iter() {
             // `execute` takes ownership of `params` so we pass account name by reference.
@@ -179,5 +127,37 @@ pub fn insert_station_data(opts: Opts, station_data: Vec<StationData>) {
             }).unwrap();
         }
     }
+}
+    
+// Setup connection to mysql
+pub fn get_opts(user: &str, pass: &str, addr: &str, database: &str) -> Opts {
+    let pass: String = ::std::env::var(pass).unwrap_or(pass.to_string());
+    let port: u16 = ::std::env::var("3306").ok().map(|my_port| my_port.parse().ok().unwrap_or(3306)).unwrap_or(3306);
+
+    let mut builder = OptsBuilder::default();
+    
+    builder.user(Some(user)) 
+            .pass(Some(pass))
+            .ip_or_hostname(Some(addr))
+            .tcp_port(port)
+            .db_name(Some(database));
+    builder.into()
     
 }
+
+pub fn create_mysql_tables(opts: Opts) {
+
+    let pool = Pool::new(opts).expect("Pool failed to get opts in fn create_mysql_tables");
+
+    pool.prep_exec(r"CREATE TABLE `station_data` (
+                        `id` char(20) NOT NULL,
+                        `lat` float DEFAULT NULL,
+                        `lon` float DEFAULT NULL,
+                        `name` varchar(30) DEFAULT NULL,
+                        `road_number` int(10) DEFAULT NULL,
+                        `county_number` int(10) DEFAULT NULL,
+                        PRIMARY KEY (`id`)
+                    )", ()).expect("Failed to create table: station_data");
+
+}
+
