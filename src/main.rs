@@ -22,7 +22,7 @@ fn main() {
     // let opts = parse::get_opts("mysql", "password", "127.0.0.1", "db");
     // parse::create_mysql_tables(opts);
 
-    // let stations = parse::read_file_station("station_data_cache.xml");
+    // let stations = parse::parse_station("station_data_cache.xml");
     let weather = parse::parse_weather("weather_data_cache.xml");
     for i in weather.iter() {
         println!("{:?}", i);
