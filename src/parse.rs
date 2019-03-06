@@ -3,7 +3,7 @@ use quick_xml::events::Event;
 use mysql::{Pool, Opts};
 use mysql::OptsBuilder;
 
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct StationData {
     id: String,
     name:  String,
@@ -12,9 +12,20 @@ pub struct StationData {
     latitude: String,
     longitude: String,
 }
+#[derive(Debug)]
+pub struct WeatherData {
+    station_id: String,
+    timestamp: String,
+    road_temperature: String,
+    air_temperature: String,
+    air_humidity: String,
+    wind_speed: String,
+    wind_direction: String,
+
+}
 
 // Parse xml file and return station_data vector
-pub fn read_file(xmlfile: &str) -> Vec<StationData> {
+pub fn parse_station(xmlfile: &str) -> Vec<StationData> {
 
     let mut xml = Reader::from_file(xmlfile).expect("Failed to open file!");
     xml.trim_text(true); //remove whitespaces
@@ -38,6 +49,7 @@ pub fn read_file(xmlfile: &str) -> Vec<StationData> {
                             county_number: String::new(),
                             latitude: String::new(),
                             longitude: String::new(),
+
                         };
                         station_data.push(station);
                         // Get station id
@@ -46,7 +58,7 @@ pub fn read_file(xmlfile: &str) -> Vec<StationData> {
                                 Ok(ref attr) if attr.key == b"id" => {
                                     let station = station_data.last_mut().unwrap();
                                     // Utf8 to String
-                                    station.id = String::from_utf8(attr.value.clone().into_owned()).unwrap()
+                                    station.id = String::from_utf8(attr.value.clone().into_owned()).unwrap();
 
                                 }
                                 Ok(_) => (),
@@ -101,7 +113,98 @@ pub fn read_file(xmlfile: &str) -> Vec<StationData> {
     // Vec<StationData>
     station_data
 
-} 
+}
+
+pub fn parse_weather(xmlfile: &str) -> Vec<WeatherData> {
+    
+    let mut xml = Reader::from_file(xmlfile).expect("Failed to open file!");
+    xml.trim_text(true); //remove whitespaces
+    
+    let mut weather_data = Vec::new();
+    let mut buf = Vec::new();
+
+    loop {
+        
+        match xml.read_event(&mut buf) {
+            Ok(Event::Start(e)) => match e.name() {
+                    b"measurementSiteReference" => {
+                        let weather = WeatherData {
+
+                            station_id: String::new(),
+                            timestamp: String::new(),
+                            road_temperature: String::new(),
+                            air_temperature: String::new(),
+                            air_humidity: String::new(),
+                            wind_speed: String::new(),
+                            wind_direction: String::new(),
+
+                        };
+                        weather_data.push(weather);
+                        // Get station id
+                        for a in e.attributes().with_checks(false) {
+                            match a {
+                                Ok(ref attr) if attr.key == b"id" => {
+                                    let weather = weather_data.last_mut().unwrap();
+                                    // Utf8 to String
+                                    weather.station_id = String::from_utf8(attr.value.clone().into_owned()).unwrap();
+
+                                }
+                                Ok(_) => (),
+                                Err(_) => panic!("Failed to get station id at pos {}: {:?}", xml.buffer_position(), a),
+                            }
+                        }
+                    }
+                    b"measurementTimeDefault" => {
+                        let weather = weather_data.last_mut().unwrap();
+                        weather.timestamp = xml.read_text(e.name(), &mut Vec::new()).unwrap();
+                    }                                     
+                    b"windSpeed" => { 
+                        let weather = weather_data.last_mut().unwrap();
+                        weather.wind_speed = xml.read_text(e.name(), &mut Vec::new()).unwrap();
+                        
+                    }
+                    b"directionCompass" => {
+                        let weather = weather_data.last_mut().unwrap();
+                        weather.wind_direction = xml.read_text(e.name(), &mut Vec::new()).unwrap();
+                            
+                    }
+                    b"airTemperature" => {
+                        let weather = weather_data.last_mut().unwrap();
+                        weather.air_temperature = xml.read_text(e.name(), &mut Vec::new()).unwrap();
+                        
+                    }
+                    // For some reason latitude and longitude coordinates are stored twice in the XML file
+                    b"roadSurfaceTemperature" => {
+                        
+                        let weather = weather_data.last_mut().unwrap();
+                        weather.road_temperature = xml.read_text(e.name(), &mut Vec::new()).unwrap();
+                        
+                    }
+                    b"humidity" => {
+                        let weather = weather_data.last_mut().unwrap();
+                        weather.air_humidity = xml.read_text(e.name(), &mut Vec::new()).unwrap();
+                        
+                    }
+                           
+                    _ => (), // There are several other `Event`s we do not consider here
+
+            },
+            Ok(Event::Eof) => break,  
+            Err(e) => panic!("Error at pos {}: {:?}", xml.buffer_position(), e),
+
+            _ => (),
+        }
+        buf.clear();
+    }
+    // Vec<StationData>
+    weather_data
+
+
+
+
+}
+
+
 
 pub fn insert_station_data(opts: Opts, station_data: Vec<StationData>) {
 
@@ -127,6 +230,13 @@ pub fn insert_station_data(opts: Opts, station_data: Vec<StationData>) {
             }).unwrap();
         }
     }
+}
+
+pub fn insert_weather_data(opts: Opts, weather_data: Vec<WeatherData>) {
+    let insert_stmt = "INSERT INTO weather_data 
+                        (station_id, timestamp, air_temperature, road_temperature, air_humidity, wind_speed, wind_direction) 
+                        VALUES (:id, :timestamp, :air_temperature, :road_temperature, :air_humidity, :wind_speed, :wind_direction)";
+
 }
     
 // Setup connection to mysql
@@ -157,7 +267,19 @@ pub fn create_mysql_tables(opts: Opts) {
                         `road_number` int(10) DEFAULT NULL,
                         `county_number` int(10) DEFAULT NULL,
                         PRIMARY KEY (`id`)
-                    )", ()).expect("Failed to create table: station_data");
-
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=COMPACT;", ()).expect("Failed to create table: station_data");
+    pool.prep_exec(r"CREATE TABLE `weather_data` (
+                    `id` int(11) NOT NULL AUTO_INCREMENT,
+                    `station_id` char(20) DEFAULT NULL,
+                    `timestamp` timestamp NULL DEFAULT NULL,
+                    `road_temperature` float DEFAULT NULL,
+                    `air_temperature` float DEFAULT NULL,
+                    `air_humidity` float DEFAULT NULL,
+                    `wind_speed` float DEFAULT NULL,
+                    `wind_direction` varchar(10) DEFAULT NULL,
+                    PRIMARY KEY (`id`),
+                    KEY `station_id` (`station_id`),
+                    CONSTRAINT `weather_data_ibfk_1` FOREIGN KEY (`station_id`) REFERENCES `station_data` (`id`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=COMPACT;", ()).expect("Failed to create table: weather_Data");
 }
 
