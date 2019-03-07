@@ -1,7 +1,6 @@
 use mysql::{Pool, Opts};
 use mysql::OptsBuilder;
-use mysql::chrono::DateTime;
-use mysql::prelude::ToValue;
+use mysql::chrono::{DateTime, FixedOffset};
 
 use crate::parseXML::{StationData, WeatherData};
 
@@ -37,25 +36,21 @@ pub fn insert_weather_data(opts: Opts, weather_data: Vec<WeatherData>) {
         // Create new pool connection 
     let pool = Pool::new(opts).expect("Pool failed to get opts in fn insert_station_data");
 
-    let insert_stmt = "INSERT INTO weather_data 
-                        (station_id, air_temperature, road_temperature, air_humidity, wind_speed, wind_direction) 
-                        VALUES (:station_id, :air_temperature, :road_temperature, :air_humidity, :wind_speed, :wind_direction)";
+    let insert_stmt = "INSERT IGNORE INTO weather_data 
+                        (station_id, timestamp, air_temperature, road_temperature, air_humidity, wind_speed, wind_direction) 
+                        VALUES (:station_id, :timestamp, :air_temperature, :road_temperature, :air_humidity, :wind_speed, :wind_direction)";
     
     for mut stmt in pool.prepare(insert_stmt).into_iter() { 
         
         for i in weather_data.iter() {
             // `execute` takes ownership of `params` so we pass account name by reference.
-            // let time = DateTime::parse_from_rfc3339(&i.timestamp.clone()).unwrap();
-            // println!("{:?}", time);
-
             stmt.execute(params!{
                 "station_id" => i.station_id.clone(),
-                // "timestamp" => i.timestamp.clone(),
-                // "timestamp" => time,
-                "air_temperature" => i.air_temperature.clone(), 
-                "road_temperature" => i.road_temperature.clone(),
-                "air_humidity" => i.air_humidity.clone(),
-                "wind_speed" => i.wind_speed.clone(),
+                "timestamp" => DateTime::<FixedOffset>::parse_from_rfc3339(&i.timestamp.clone()).unwrap().naive_utc(),
+                "air_temperature" => i.air_temperature.clone().parse::<f32>().unwrap_or(0.0),
+                "road_temperature" => i.road_temperature.clone().parse::<f32>().unwrap_or(0.0),
+                "air_humidity" => i.air_humidity.clone().parse::<f32>().unwrap_or(0.0),
+                "wind_speed" => i.wind_speed.clone().parse::<f32>().unwrap_or(0.0),
                 "wind_direction" => i.wind_direction.clone(),
 
             }).expect("Failed to execute statement when reading from weather_data");
@@ -97,10 +92,10 @@ pub fn create_mysql_tables(opts: Opts) {
                     id INT NOT NULL AUTO_INCREMENT,
                     station_id CHAR(20) NOT NULL,
                     timestamp TIMESTAMP NULL DEFAULT NULL,
-                    road_temperature DECIMAL(5,1) DEFAULT NULL,
-                    air_temperature DECIMAL(5,1) DEFAULT NULL,
-                    air_humidity CHAR(10) DEFAULT NULL,
-                    wind_speed DECIMAL(5,1) DEFAULT NULL,
+                    road_temperature FLOAT DEFAULT NULL,
+                    air_temperature FLOAT DEFAULT NULL,
+                    air_humidity FLOAT DEFAULT NULL,
+                    wind_speed FLOAT DEFAULT NULL,
                     wind_direction CHAR(10) DEFAULT NULL,
                     PRIMARY KEY (id),
                     KEY station_id (station_id),

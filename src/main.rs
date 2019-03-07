@@ -23,14 +23,14 @@ fn main() {
 
     // Create table station_data;
     let opts = database::get_opts("mysql", "password", "127.0.0.1", "db");
-    // parse::create_mysql_tables(opts);
+    // database::create_mysql_tables(opts);
 // 
-    // let stations = parse::parse_station("station_data_cache.xml");
+    // let stations = parseXML::parse_station("station_data_cache.xml");
     // let mut count = 0;
     let weather = parseXML::parse_weather("weather_data_cache.xml");
     // for i in weather.iter() {
                
-    //     // println!("{:?}", temp);
+    //     println!("{:?}", i.road_temperature);
 
 
     // }
