@@ -1,26 +1,35 @@
+/*
+Parse given file, tags are static and need to modified if new unknown XML file is given.
+If DATEX II XML file structure is changed parsing will most likely stop working.
+
+TODO: weather_data XML file has precipitationType ex. snow/rain and precipitationIntensity that are not parsed
+because of the original MYSQL table structure!
+
+*/
+
 use quick_xml::Reader;
 use quick_xml::events::Event;
-use mysql::{Pool, Opts};
-use mysql::OptsBuilder;
 
 #[derive(Debug)]
 pub struct StationData {
-    id: String,
-    name:  String,
-    road_number: String,
-    county_number: String,
-    latitude: String,
-    longitude: String,
+    pub id: String,
+    pub name:  String,
+    pub road_number: String,
+    pub county_number: String,
+    pub latitude: String,
+    pub longitude: String,
+    _secret: (), // Disliked the use of pub, will prevent from use of struct elsewere then in this module
 }
 #[derive(Debug)]
 pub struct WeatherData {
-    station_id: String,
-    timestamp: String,
-    road_temperature: String,
-    air_temperature: String,
-    air_humidity: String,
-    wind_speed: String,
-    wind_direction: String,
+    pub station_id: String,
+    pub timestamp: String,
+    pub road_temperature: String,
+    pub air_temperature: String,
+    pub air_humidity: String,
+    pub wind_speed: String,
+    pub wind_direction: String,
+    _secret: (),
 
 }
 
@@ -49,6 +58,7 @@ pub fn parse_station(xmlfile: &str) -> Vec<StationData> {
                             county_number: String::new(),
                             latitude: String::new(),
                             longitude: String::new(),
+                            _secret: (),
 
                         };
                         station_data.push(station);
@@ -112,6 +122,7 @@ pub fn parse_station(xmlfile: &str) -> Vec<StationData> {
 }
 
 pub fn parse_weather(xmlfile: &str) -> Vec<WeatherData> {
+    // Used for nested tags
      #[derive(Clone, Copy)]
     enum State {
         Root,
@@ -126,7 +137,6 @@ pub fn parse_weather(xmlfile: &str) -> Vec<WeatherData> {
     
     let mut weather_data = Vec::new();
     let mut buf = Vec::new();
-    // let mut ns_buffer = Vec::new();
     let mut state = State::Root;
     loop {
         
@@ -142,6 +152,7 @@ pub fn parse_weather(xmlfile: &str) -> Vec<WeatherData> {
                         air_humidity: String::new(),
                         wind_speed: String::new(),
                         wind_direction: String::new(),
+                        _secret: (),
 
                     };
                     weather_data.push(weather);
@@ -216,88 +227,5 @@ pub fn parse_weather(xmlfile: &str) -> Vec<WeatherData> {
     // Vec<WeatherData>
     weather_data
     
-
-
-
-
-}
-
-
-
-pub fn insert_station_data(opts: Opts, station_data: Vec<StationData>) {
-
-    // Create new pool connection 
-    let pool = Pool::new(opts).expect("Pool failed to get opts in fn insert_station_data");
-
-    let insert_stmt = r"INSERT INTO station_data (id, lat, lon, name, road_number, county_number) 
-                                    VALUES (:id, :latitude, :longitude, :name, :road_number, :county_number)
-                                    ON DUPLICATE KEY UPDATE lat=:latitude, lon=:longitude, name=:name, road_number=:road_number,
-                                    county_number=:county_number;";
-
-    for mut stmt in pool.prepare(insert_stmt).into_iter() { 
-        
-        for i in station_data.iter() {
-            // `execute` takes ownership of `params` so we pass account name by reference.
-            stmt.execute(params!{
-                "id" => i.id.clone(),
-                "latitude" => i.latitude.clone(),
-                "longitude" => i.longitude.clone(),
-                "name" => i.name.clone(),
-                "road_number" => i.road_number.clone(),
-                "county_number" => i.county_number.clone(),
-            }).unwrap();
-        }
-    }
-}
-
-pub fn insert_weather_data(opts: Opts, weather_data: Vec<WeatherData>) {
-    let insert_stmt = "INSERT INTO weather_data 
-                        (station_id, timestamp, air_temperature, road_temperature, air_humidity, wind_speed, wind_direction) 
-                        VALUES (:id, :timestamp, :air_temperature, :road_temperature, :air_humidity, :wind_speed, :wind_direction)";
-
-}
-    
-// Setup connection to mysql
-pub fn get_opts(user: &str, pass: &str, addr: &str, database: &str) -> Opts {
-    let pass: String = ::std::env::var(pass).unwrap_or(pass.to_string());
-    let port: u16 = ::std::env::var("3306").ok().map(|my_port| my_port.parse().ok().unwrap_or(3306)).unwrap_or(3306);
-
-    let mut builder = OptsBuilder::default();
-    
-    builder.user(Some(user)) 
-            .pass(Some(pass))
-            .ip_or_hostname(Some(addr))
-            .tcp_port(port)
-            .db_name(Some(database));
-    builder.into()
-    
-}
-
-pub fn create_mysql_tables(opts: Opts) {
-
-    let pool = Pool::new(opts).expect("Pool failed to get opts in fn create_mysql_tables");
-
-    pool.prep_exec(r"CREATE TABLE `station_data` (
-                        `id` char(20) NOT NULL,
-                        `lat` float DEFAULT NULL,
-                        `lon` float DEFAULT NULL,
-                        `name` varchar(30) DEFAULT NULL,
-                        `road_number` int(10) DEFAULT NULL,
-                        `county_number` int(10) DEFAULT NULL,
-                        PRIMARY KEY (`id`)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=COMPACT;", ()).expect("Failed to create table: station_data");
-    pool.prep_exec(r"CREATE TABLE `weather_data` (
-                    `id` int(11) NOT NULL AUTO_INCREMENT,
-                    `station_id` char(20) DEFAULT NULL,
-                    `timestamp` timestamp NULL DEFAULT NULL,
-                    `road_temperature` float DEFAULT NULL,
-                    `air_temperature` float DEFAULT NULL,
-                    `air_humidity` float DEFAULT NULL,
-                    `wind_speed` float DEFAULT NULL,
-                    `wind_direction` varchar(10) DEFAULT NULL,
-                    PRIMARY KEY (`id`),
-                    KEY `station_id` (`station_id`),
-                    CONSTRAINT `weather_data_ibfk_1` FOREIGN KEY (`station_id`) REFERENCES `station_data` (`id`)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=COMPACT;", ()).expect("Failed to create table: weather_Data");
 }
 

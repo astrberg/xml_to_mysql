@@ -5,7 +5,10 @@ extern crate mysql;
 
 
 mod fetch;
-mod parse;
+mod parseXML;
+mod database;
+
+
 
 fn main() {
     // let user = "LTU";
@@ -19,16 +22,25 @@ fn main() {
 
 
     // Create table station_data;
-    // let opts = parse::get_opts("mysql", "password", "127.0.0.1", "db");
+    let opts = database::get_opts("mysql", "password", "127.0.0.1", "db");
     // parse::create_mysql_tables(opts);
-
+// 
     // let stations = parse::parse_station("station_data_cache.xml");
-    let weather = parse::parse_weather("weather_data_cache.xml");
-    for i in weather.iter() {
-        println!("{:?}", i);
+    // let mut count = 0;
+    let weather = parseXML::parse_weather("weather_data_cache.xml");
+    // for i in weather.iter() {
+               
+    //     // println!("{:?}", temp);
 
-    }
-    // parse::insert_station_data(opts, stations);
+
+    // }
+    // println!("{}", count);
+    
+    // database::insert_station_data(opts, stations);
+    // let opts = database::get_opts("mysql", "password", "127.0.0.1", "db");
+
+    database::insert_weather_data(opts, weather);
+
     // fetch_xml();
-    // create_mysql_tables();
+    // database::create_mysql_tables(opts);
 }
