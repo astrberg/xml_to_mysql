@@ -113,9 +113,12 @@ pub fn parse_station(xmlfile: &str) -> Vec<StationData> {
 
 pub fn parse_weather(xmlfile: &str) -> Vec<WeatherData> {
      #[derive(Clone, Copy)]
-    enum Tree {
+    enum State {
         Root,
-        Leaf,
+        Air,
+        Road,
+        Humidity,
+        Wind,
     };
 
     let mut xml = Reader::from_file(xmlfile).expect("Failed to open file!");
@@ -124,7 +127,7 @@ pub fn parse_weather(xmlfile: &str) -> Vec<WeatherData> {
     let mut weather_data = Vec::new();
     let mut buf = Vec::new();
     // let mut ns_buffer = Vec::new();
-    let mut tree = Tree::Root;
+    let mut state = State::Root;
     loop {
         
         match xml.read_event(&mut buf) {
@@ -154,34 +157,35 @@ pub fn parse_weather(xmlfile: &str) -> Vec<WeatherData> {
                 _ => {}
             }
             Ok(Event::Start(ref e)) => {
-                match (tree, e.name()) {
-                    (Tree::Root, b"airTemperature") => tree = Tree::Leaf,
-                    (Tree::Leaf, b"temperature") => {
+                match (state, e.name()) {
+                    (State::Root, b"airTemperature") => state = State::Air,
+                    (State::Air, b"temperature") => {
                             let weather = weather_data.last_mut().expect("Failed to get pointer, airTemperature");
                             weather.air_temperature = xml.read_text(e.name(), &mut Vec::new()).expect("Failed to read text at airTemperature");
                     }
-                    (Tree::Root, b"measurementTimeDefault") => {
+                    (State::Root, b"measurementTimeDefault") => {
                         let weather = weather_data.last_mut().expect("Failed to get pointer, measurementTimeDefault");
                         weather.timestamp = xml.read_text(e.name(), &mut Vec::new()).expect("Failed to read text at measurementTimeDefault");
                     }
-                    // (Tree::Root, b"roadSurfaceTemperature") => tree = Tree::Leaf,
-                    // (Tree::Leaf, b"temperature") => {
-                    //     let weather = weather_data.last_mut().expect("Failed to get pointer, roadSurfaceTemperature");
-                    //     weather.road_temperature = xml.read_text(e.name(), &mut Vec::new()).expect("Failed to read text at roadSurfaceTemperature");
+                    (State::Root, b"roadSurfaceTemperature") => state = State::Road,
+                    (State::Road, b"temperature") => {
+                        let weather = weather_data.last_mut().expect("Failed to get pointer, roadSurfaceTemperature");
+                        weather.road_temperature = xml.read_text(e.name(), &mut Vec::new()).expect("Failed to read text at roadSurfaceTemperature");
                         
-                    // }            
-                    // (Tree::Root, b"relativeHumidity") => tree = Tree::Leaf,
-                    // (Tree::Leaf, b"percentage") => {
-                    //     let weather = weather_data.last_mut().expect("Failt to get pointer, relativeHumidity");
-                    //     weather.air_humidity = xml.read_text(e.name(), &mut Vec::new()).expect("Failed to read text at relativeHumidity");
+                    }            
+                    (State::Root, b"relativeHumidity") => state = State::Humidity,
+                    (State::Humidity, b"percentage") => {
+                        let weather = weather_data.last_mut().expect("Failt to get pointer, relativeHumidity");
+                        weather.air_humidity = xml.read_text(e.name(), &mut Vec::new()).expect("Failed to read text at relativeHumidity");
                         
-                    // }                                     
-                    // (Tree::Root, b"windSpeed") => { 
-                    //     let weather = weather_data.last_mut().expect("Failed to get pointer, windSpeed");
-                    //     weather.wind_speed = xml.read_text(e.name(), &mut Vec::new()).expect("Failed to read text at windSpeed");
+                    }                                     
+                    (State::Root, b"windSpeed") => state = State::Wind,
+                    (State::Wind, b"speed") => { 
+                        let weather = weather_data.last_mut().expect("Failed to get pointer, windSpeed");
+                        weather.wind_speed = xml.read_text(e.name(), &mut Vec::new()).expect("Failed to read text at windSpeed");
                         
-                    // }
-                    (Tree::Root, b"directionCompass") => {
+                    }
+                    (State::Root, b"directionCompass") => {
                         let weather = weather_data.last_mut().expect("Failed to get pointer, directionCompass");
                         weather.wind_direction = xml.read_text(e.name(), &mut Vec::new()).expect("Failed to read text at directionCompass");
                             
@@ -191,10 +195,11 @@ pub fn parse_weather(xmlfile: &str) -> Vec<WeatherData> {
             }
             
             Ok(Event::End(ref e)) => {
-                match (tree, e.name()) {
-                    (Tree::Leaf, b"airTemperature") => tree = Tree::Root,
-                    // (Tree::Leaf, b"roadSurfaceTemperature") => tree = Tree::Root,
-                    // (Tree::Root, b"relativeHumidity") => tree = Tree::Root,
+                match (state, e.name()) {
+                    (State::Air, b"airTemperature") => state = State::Root,
+                    (State::Road, b"roadSurfaceTemperature") => state = State::Root,
+                    (State::Humidity, b"relativeHumidity") => state = State::Root,
+                    (State::Wind, b"windSpeed") => state = State::Root,
 
 
                     _ => {}
