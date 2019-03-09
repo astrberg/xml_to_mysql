@@ -19,6 +19,7 @@ fn main() {
 
     // Create new pool connections 
     let pool = mysql::Pool::new(opts).expect("Pool failed to get opts!");
+    database::create_mysql_tables(pool.clone());
     let station_pool = pool.clone();
     let weather_pool = pool.clone();
 

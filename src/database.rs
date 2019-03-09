@@ -74,7 +74,6 @@ pub fn get_opts(user: &str, pass: &str, addr: &str, database: &str) -> Opts {
 }
 
 // Create the tables, only for new db!
-#[allow(dead_code)]
 pub fn create_mysql_tables(pool: Pool) {
 
 
