@@ -63,17 +63,6 @@ fn main() {
     
     });
     station_thread.join().unwrap();
-
-    
-
-  
-
-    
-    println!("RCM XML to MySQL is running...");
-    // weather_thread.join().unwrap();
-
-
-
     
 
     // database::create_mysql_tables(opts);
