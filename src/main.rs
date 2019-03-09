@@ -25,46 +25,53 @@ fn main() {
     
     // Station data fetched once every day from DATEX II, parsed and inserted to MYSQL
     let station_thread = thread::spawn(move || loop {
+         println!("station thread running...");
+        let fetch_thread = thread::spawn(|| {
+            fetch::fetch_xml("https://datex.trafikverket.se/D2ClientPull/MetaDataBA/2_3/WeatherMetaData", "LTU", "DatexLTU2018#", "station_data_cache.xml");
+            println!("{:?}: station file fetched from DATEX II", Local::now().naive_local());
+        });
+        // Wait for fetch to complete
+        fetch_thread.join().unwrap();
+       
 
-            // let mut _mysql_pool = station_pool.lock().unwrap();
-            println!("station thread running...");
-            let fetch_thread = thread::spawn(|| {
-                fetch::fetch_xml("https://datex.trafikverket.se/D2ClientPull/MetaDataBA/2_3/WeatherMetaData", "LTU", "DatexLTU2018#", "station_data_cache.xml");
-                println!("{:?}: station file fetched from DATEX II", Local::now().naive_local());
-            });
-            // Wait for fetch to complete
-            fetch_thread.join().unwrap();
-            let station_data = parse_xml::parse_station("station_data_cache.xml");
-            database::insert_station_data(station_pool.clone(), station_data);
-            
-            // Sleep for 24 h
-            thread::sleep(Duration::from_secs(86400));
-            // thread::sleep(Duration::from_secs(20));
-     });
-    let weather_thread = thread::spawn(move || loop {
+        let station_data = parse_xml::parse_station("station_data_cache.xml");
+        database::insert_station_data(station_pool.clone(), station_data);
+        
+        // Sleep for 24 h
+        thread::sleep(Duration::from_secs(86400));
 
-        // Weather data fetched every 15 min from DATEX II, parsed and inserted to MYSQL
+
+
+    });
+    // Weather data fetched every 15 min from DATEX II, parsed and inserted to MYSQL
+    let _weather_thread = thread::spawn(move || loop {
         println!("weather thread running...");
-         let fetch_thread = thread::spawn(|| {
-        fetch::fetch_xml("https://datex.trafikverket.se/D2ClientPull/WeatherPullServerBA/2_3/Weather", "LTU", "DatexLTU2018#", "weather_data_cache.xml");
-         println!("{:?}: weather file fetched from DATEX II", Local::now().naive_local());
+        let fetch_thread = thread::spawn(|| {
+            fetch::fetch_xml("https://datex.trafikverket.se/D2ClientPull/WeatherPullServerBA/2_3/Weather", "LTU", "DatexLTU2018#", "weather_data_cache.xml");
+            println!("{:?}: weather file fetched from DATEX II", Local::now().naive_local());
 
         });
         // Wait for fetch to complete
         fetch_thread.join().unwrap();
+
         let weather_data = parse_xml::parse_weather("weather_data_cache.xml");
         database::insert_weather_data(weather_pool.clone(), weather_data);
-        
-
+    
         // Sleep for 15 min
         thread::sleep(Duration::from_secs(900));
-        // thread::sleep(Duration::from_secs(5));
     
     
     });
-    println!("RCM XML to MySQL is running...");
-    weather_thread.join().unwrap();
     station_thread.join().unwrap();
+
+    
+
+  
+
+    
+    println!("RCM XML to MySQL is running...");
+    // weather_thread.join().unwrap();
+
 
 
     
