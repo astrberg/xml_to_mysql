@@ -3,6 +3,12 @@ name = "xml_to_mysql"
 version = "0.1.0"
 authors = ["Aron Strandberg <arostr-5@student.ltu.se>"]
 edition = "2018"
+license = "MIT"
+description = "Parsing tool from xml to mysql"
+readme = "README.md"
+homepage = "https://github.com/dynematic/xml_to_mysql"
+repository = "https://github.com/dynematic/xml_to_mysql"
+keywords = ["xml", "mysql", "parse"]
 
 [dependencies]
 reqwest = "0.9.9"
