@@ -1,3 +1,4 @@
 /target
+!/target/release/xml_to_mysql
 **/*.rs.bk
 
