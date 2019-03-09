@@ -6,10 +6,9 @@ use crate::parse_xml::{StationData, WeatherData};
 
 
 // Insert the data to MYSQL, TABLE assumed to exist
-pub fn insert_station_data(opts: Opts, station_data: Vec<StationData>) {
+pub fn insert_station_data(pool: Pool, station_data: Vec<StationData>) {
 
-    // Create new pool connection 
-    let pool = Pool::new(opts).expect("Pool failed to get opts in fn insert_station_data");
+
 
     let insert_stmt = r"INSERT INTO station_data (id, lat, lon, name, road_number, county_number) 
                                     VALUES (:id, :latitude, :longitude, :name, :road_number, :county_number)
@@ -32,9 +31,7 @@ pub fn insert_station_data(opts: Opts, station_data: Vec<StationData>) {
     }
 }
 // Insert the data to MYSQL, TABLE assumed to exist
-pub fn insert_weather_data(opts: Opts, weather_data: Vec<WeatherData>) {
-        // Create new pool connection 
-    let pool = Pool::new(opts).expect("Pool failed to get opts in fn insert_station_data");
+pub fn insert_weather_data(pool: Pool, weather_data: Vec<WeatherData>) {
 
     let insert_stmt = r"INSERT IGNORE INTO weather_data 
                         (station_id, timestamp, air_temperature, road_temperature, air_humidity, wind_speed, wind_direction) 
@@ -76,9 +73,8 @@ pub fn get_opts(user: &str, pass: &str, addr: &str, database: &str) -> Opts {
     
 }
 // Create the tables, only for new db!
-pub fn create_mysql_tables(opts: Opts) {
+pub fn create_mysql_tables(pool: Pool) {
 
-    let pool = Pool::new(opts).expect("Pool failed to get opts in fn create_mysql_tables");
 
     pool.prep_exec(r"CREATE TABLE IF NOT EXISTS station_data (
                         id CHAR(20) NOT NULL,
