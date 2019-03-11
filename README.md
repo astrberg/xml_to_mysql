@@ -1,5 +1,5 @@
 # XML to MySQL
-A Rust tool to download a XML file from Datex II, parse the data and insert it to a MySQL database.
+A Rust tool to download a XML file from [Datex II](https://datex2.eu/), parse the data and insert it to a MySQL database.
 
 ## Notice
 This tool was made for my own sake of practice and interest, time is scarce and maybe I will spend some more time polishing this tool but don't expect much.
