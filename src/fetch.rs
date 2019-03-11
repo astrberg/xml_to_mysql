@@ -19,3 +19,4 @@ pub fn fetch_xml(url: &str, user: &str, pass: &str, file_name: &str) {
         .expect("Failed to read response to file");
 
 }
+

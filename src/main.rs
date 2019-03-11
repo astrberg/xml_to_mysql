@@ -8,14 +8,15 @@ extern crate mysql;
 use std::{thread, time::{Duration}};
 use mysql::chrono::{Local};
 
+mod auth;
 mod fetch;
 mod parse_xml;
 mod database;
 
 
 fn main() {
-    // let opts = Arc::new(RwLock::new(database::get_opts("mysql", "password", "127.0.0.1", "db")));
-    let opts = database::get_opts("mysql", "password", "127.0.0.1", "db");
+
+    let opts = database::get_opts(auth::USER_DB, auth::PASS_DB, auth::ADDR_DB, auth::NAME_DB);
 
     // Create new pool connections 
     let pool = mysql::Pool::new(opts).expect("Pool failed to get opts!");
@@ -28,7 +29,7 @@ fn main() {
     let station_thread = thread::spawn(move || loop {
          println!("station thread running...");
         let fetch_thread = thread::spawn(|| {
-            fetch::fetch_xml("https://datex.trafikverket.se/D2ClientPull/MetaDataBA/2_3/WeatherMetaData", "LTU", "DatexLTU2018#", "station_data_cache.xml");
+            fetch::fetch_xml(auth::URL_S, auth::USER_DATEX, auth::PASS_DATEX, "station_data_cache.xml");
             println!("{:?}: station file fetched from DATEX II", Local::now().naive_local());
         });
         // Wait for fetch to complete
@@ -48,7 +49,7 @@ fn main() {
     let _weather_thread = thread::spawn(move || loop {
         println!("weather thread running...");
         let fetch_thread = thread::spawn(|| {
-            fetch::fetch_xml("https://datex.trafikverket.se/D2ClientPull/WeatherPullServerBA/2_3/Weather", "LTU", "DatexLTU2018#", "weather_data_cache.xml");
+            fetch::fetch_xml(auth::URL_W, auth::USER_DATEX, auth::PASS_DATEX, "weather_data_cache.xml");
             println!("{:?}: weather file fetched from DATEX II", Local::now().naive_local());
 
         });
@@ -67,5 +68,6 @@ fn main() {
     
 
     // database::create_mysql_tables(opts);
+
 
 }
