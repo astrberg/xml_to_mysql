@@ -8,10 +8,6 @@ This tool was made for my own sake of practice and interest, time is scarce and 
 
 Use [cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) to install XML to MySQL.
 
-```
-NOT PUBLISHED
-```
-
 ## Usage
 
 ```rust
